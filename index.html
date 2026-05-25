@@ -6,11 +6,12 @@
 <title>Dig A Dirt 3D</title>
 
 <style>
+
 body{
 margin:0;
 overflow:hidden;
-background:black;
 font-family:Arial;
+background:black;
 }
 
 canvas{
@@ -21,11 +22,12 @@ display:block;
 position:fixed;
 top:10px;
 left:10px;
-color:white;
 background:rgba(0,0,0,0.5);
 padding:15px;
-border-radius:10px;
-font-size:18px;
+border-radius:15px;
+color:white;
+font-size:20px;
+z-index:10;
 }
 
 #crosshair{
@@ -36,6 +38,7 @@ transform:translate(-50%,-50%);
 color:white;
 font-size:30px;
 pointer-events:none;
+z-index:10;
 }
 
 #shop{
@@ -44,20 +47,27 @@ right:10px;
 bottom:10px;
 background:rgba(0,0,0,0.5);
 padding:15px;
-border-radius:10px;
+border-radius:15px;
 color:white;
+z-index:10;
 }
 
 button{
-padding:10px;
-margin-top:5px;
-width:180px;
+width:200px;
+padding:12px;
+margin-top:8px;
 border:none;
 border-radius:10px;
 background:orange;
 font-weight:bold;
 cursor:pointer;
+font-size:16px;
 }
+
+button:hover{
+background:gold;
+}
+
 </style>
 </head>
 
@@ -72,13 +82,28 @@ cursor:pointer;
 <div id="crosshair">+</div>
 
 <div id="shop">
-<h3>🛒 Shop</h3>
-<button onclick="sellItems()">Sell Inventory</button>
+<h2>🛒 Shop</h2>
+
+<button onclick="sellInventory()">
+Sell Inventory
+</button>
+
+<button onclick="buyIron()">
+Buy Iron Shovel - 100
+</button>
+
+<button onclick="buyDiamond()">
+Buy Diamond Drill - 500
+</button>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 
 <script>
+
+// ======================
+// BASIC SETUP
+// ======================
 
 const scene = new THREE.Scene();
 
@@ -86,7 +111,7 @@ scene.background = new THREE.Color(0x87ceeb);
 
 const camera = new THREE.PerspectiveCamera(
 75,
-window.innerWidth/window.innerHeight,
+window.innerWidth / window.innerHeight,
 0.1,
 1000
 );
@@ -104,65 +129,124 @@ document.body.appendChild(
 renderer.domElement
 );
 
-// LIGHT
+// ======================
+// LIGHTING
+// ======================
+
 const ambient = new THREE.AmbientLight(
 0xffffff,
-1.2
+1.5
 );
 
 scene.add(ambient);
 
-const light = new THREE.DirectionalLight(
+const sun = new THREE.DirectionalLight(
 0xffffff,
 2
 );
 
-light.position.set(10,20,10);
+sun.position.set(
+20,
+30,
+10
+);
 
-scene.add(light);
+scene.add(sun);
 
+// ======================
 // PLAYER
+// ======================
+
 camera.position.set(
 0,
 10,
 20
 );
 
-camera.lookAt(0,0,0);
+camera.lookAt(
+0,
+0,
+0
+);
 
-// WORLD
+// ======================
+// GAME DATA
+// ======================
+
+let coins = 0;
+let inventory = 0;
+let toolLevel = 1;
+
 const world = [];
 
-const geometry = new THREE.BoxGeometry(
+// ======================
+// BLOCK MATERIALS
+// ======================
+
+const dirtMaterial =
+new THREE.MeshLambertMaterial({
+color:0x8b4513
+});
+
+const goldMaterial =
+new THREE.MeshLambertMaterial({
+color:0xffcc00
+});
+
+const rubyMaterial =
+new THREE.MeshLambertMaterial({
+color:0xff0000
+});
+
+const chestMaterial =
+new THREE.MeshLambertMaterial({
+color:0x996633
+});
+
+// ======================
+// BLOCK GEOMETRY
+// ======================
+
+const geometry =
+new THREE.BoxGeometry(
 3,
 3,
 3
 );
 
-let inventory = 0;
-let coins = 0;
+// ======================
+// WORLD GENERATION
+// ======================
 
-const dirtMaterial = new THREE.MeshLambertMaterial({
-color:0x8b4513
-});
-
-const goldMaterial = new THREE.MeshLambertMaterial({
-color:0xffcc00
-});
-
-// GENERATE WORLD
-for(let x=-5;x<=5;x++)
+for(let x=-8;x<=8;x++)
 {
-for(let z=-5;z<=5;z++)
+for(let z=-8;z<=8;z++)
 {
-for(let y=-2;y<=0;y++)
+for(let y=-3;y<=0;y++)
 {
 
 let material = dirtMaterial;
+let type = "dirt";
 
-if(Math.random() < 0.1)
+// GOLD
+if(Math.random() < 0.08)
 {
 material = goldMaterial;
+type = "gold";
+}
+
+// RUBY
+if(Math.random() < 0.03)
+{
+material = rubyMaterial;
+type = "ruby";
+}
+
+// CHEST
+if(Math.random() < 0.01)
+{
+material = chestMaterial;
+type = "chest";
 }
 
 const cube = new THREE.Mesh(
@@ -171,10 +255,15 @@ material
 );
 
 cube.position.set(
-x * 3,
-y * 3,
-z * 3
+x * 4,
+y * 4,
+z * 4
 );
+
+cube.userData.type = type;
+
+cube.rotation.x = 0.05;
+cube.rotation.y = 0.05;
 
 scene.add(cube);
 
@@ -184,7 +273,10 @@ world.push(cube);
 }
 }
 
+// ======================
 // MOVEMENT
+// ======================
+
 const keys = {};
 
 window.addEventListener(
@@ -201,7 +293,10 @@ keys[e.key.toLowerCase()] = false;
 }
 );
 
+// ======================
 // DIG SYSTEM
+// ======================
+
 const raycaster = new THREE.Raycaster();
 
 window.addEventListener(
@@ -217,6 +312,7 @@ const hits = raycaster.intersectObjects(world);
 
 if(hits.length > 0)
 {
+
 const block = hits[0].object;
 
 scene.remove(block);
@@ -230,21 +326,33 @@ world.splice(index,1);
 
 inventory++;
 
-document.getElementById(
-"inventory"
-).innerText = inventory;
+if(block.userData.type === "gold")
+{
+coins += 25;
+}
+
+if(block.userData.type === "ruby")
+{
+coins += 100;
+}
+
+if(block.userData.type === "chest")
+{
+coins += 300;
+}
+
+updateUI();
 
 }
 }
 );
 
-// SELL
-function sellItems()
+// ======================
+// UI UPDATE
+// ======================
+
+function updateUI()
 {
-coins += inventory * 10;
-
-inventory = 0;
-
 document.getElementById(
 "coins"
 ).innerText = coins;
@@ -254,21 +362,126 @@ document.getElementById(
 ).innerText = inventory;
 }
 
+// ======================
+// SHOP
+// ======================
+
+function sellInventory()
+{
+coins += inventory * 10;
+
+inventory = 0;
+
+updateUI();
+}
+
+function buyIron()
+{
+if(coins >= 100)
+{
+coins -= 100;
+
+toolLevel = 2;
+
+document.getElementById(
+"ui"
+).innerHTML =
+`
+💰 Coins: <span id="coins">${coins}</span><br>
+📦 Inventory: <span id="inventory">${inventory}</span><br>
+⛏ Tool: Iron Shovel
+`;
+}
+}
+
+function buyDiamond()
+{
+if(coins >= 500)
+{
+coins -= 500;
+
+toolLevel = 3;
+
+document.getElementById(
+"ui"
+).innerHTML =
+`
+💰 Coins: <span id="coins">${coins}</span><br>
+📦 Inventory: <span id="inventory">${inventory}</span><br>
+⛏ Tool: Diamond Drill
+`;
+}
+}
+
+// ======================
 // GAME LOOP
+// ======================
+
 function animate()
 {
-requestAnimationFrame(animate);
+requestAnimationFrame(
+animate
+);
 
 // MOVEMENT
-if(keys["w"]) camera.position.z -= 0.3;
-if(keys["s"]) camera.position.z += 0.3;
-if(keys["a"]) camera.position.x -= 0.3;
-if(keys["d"]) camera.position.x += 0.3;
 
-renderer.render(scene,camera);
+if(keys["w"])
+{
+camera.position.z -= 0.3;
+}
+
+if(keys["s"])
+{
+camera.position.z += 0.3;
+}
+
+if(keys["a"])
+{
+camera.position.x -= 0.3;
+}
+
+if(keys["d"])
+{
+camera.position.x += 0.3;
+}
+
+// LOOK CENTER
+
+camera.lookAt(
+0,
+-5,
+0
+);
+
+renderer.render(
+scene,
+camera
+);
 }
 
 animate();
+
+// ======================
+// RESIZE
+// ======================
+
+window.addEventListener(
+"resize",
+()=>{
+
+camera.aspect =
+window.innerWidth /
+window.innerHeight;
+
+camera.updateProjectionMatrix();
+
+renderer.setSize(
+window.innerWidth,
+window.innerHeight
+);
+
+}
+);
 
 </script>
 
