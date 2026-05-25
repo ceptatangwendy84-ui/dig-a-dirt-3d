@@ -1,146 +1,435 @@
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dig A Dirt 3D Extreme</title>
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
 
-<script>
+body {
+    overflow: hidden;
+    background: black;
+    font-family: Arial, sans-serif;
+}
+
+#ui {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 100;
+    color: white;
+    background: rgba(0,0,0,0.6);
+    padding: 15px;
+    border-radius: 12px;
+    width: 260px;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.2);
+}
+
+.stat {
+    margin-top: 8px;
+}
+
+#crosshair {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 26px;
+    z-index: 50;
+}
+
+#inventory {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    z-index: 100;
+}
+
+.slot {
+    width: 70px;
+    height: 70px;
+    background: rgba(255,255,255,0.1);
+    border: 2px solid rgba(255,255,255,0.2);
+    border-radius: 12px;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    backdrop-filter: blur(4px);
+}
+
+#quest {
+    position: absolute;
+    right: 20px;
+    top: 20px;
+    width: 280px;
+    padding: 15px;
+    border-radius: 12px;
+    background: rgba(0,0,0,0.65);
+    color: white;
+    z-index: 100;
+}
+
+#shop {
+    position: absolute;
+    right: 20px;
+    bottom: 20px;
+    width: 260px;
+    background: rgba(0,0,0,0.65);
+    padding: 15px;
+    border-radius: 12px;
+    color: white;
+    z-index: 100;
+}
+
+button {
+    width: 100%;
+    margin-top: 8px;
+    padding: 10px;
+    border: none;
+    border-radius: 10px;
+    background: orange;
+    color: black;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+button:hover {
+    transform: scale(1.03);
+}
+
+#loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: black;
+    color: white;
+    z-index: 999;
+    font-size: 32px;
+    letter-spacing: 4px;
+}
+</style>
+</head>
+<body>
+
+<div id="loading">DIG A DIRT 3D LOADING...</div>
+
+<div id="crosshair">+</div>
+
+<div id="ui">
+    <h2>⛏ Dig A Dirt 3D</h2>
+    <div class="stat">💰 Coins: <span id="coins">0</span></div>
+    <div class="stat">📦 Inventory: <span id="inventoryCount">0</span></div>
+    <div class="stat">⬇ Depth: <span id="depth">0</span>m</div>
+    <div class="stat">⚡ Tool: <span id="tool">Wooden Shovel</span></div>
+</div>
+
+<div id="quest">
+    <h3>📜 Quest</h3>
+    <p>Dig 25 dirt blocks</p>
+    <p>Reward: 200 Coins</p>
+    <p>Progress: <span id="questProgress">0</span>/25</p>
+</div>
+
+<div id="shop">
+    <h3>🛒 Shop</h3>
+    <button onclick="buyIronShovel()">Buy Iron Shovel - 200</button>
+    <button onclick="buyDrill()">Buy Diamond Drill - 1000</button>
+    <button onclick="sellItems()">Sell Inventory</button>
+</div>
+
+<div id="inventory">
+    <div class="slot">DIRT</div>
+    <div class="slot">GOLD</div>
+    <div class="slot">RUBY</div>
+    <div class="slot">CHEST</div>
+</div>
+
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js';
+import { PointerLockControls } from 'https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/controls/PointerLockControls.js';
+
 const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x000000, 30, 140);
 
 const camera = new THREE.PerspectiveCamera(
-75,
-window.innerWidth/window.innerHeight,
-0.1,
-1000
+    75,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    1000
 );
 
-const renderer = new THREE.WebGLRenderer();
-
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
-
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
-// FIX PERFORMANCE
-renderer.shadowMap.enabled = false;
+const controls = new PointerLockControls(camera, document.body);
 
-// LIGHT
-const light = new THREE.DirectionalLight(0xffffff, 1);
+document.body.addEventListener('click', () => {
+    controls.lock();
+});
 
-light.position.set(5, 10, 5);
+scene.add(controls.getObject());
 
-scene.add(light);
+camera.position.set(0, 15, 20);
 
-// PLAYER POSITION
-camera.position.set(0, 5, 10);
+const ambient = new THREE.AmbientLight(0xffffff, 0.35);
+scene.add(ambient);
 
-// WORLD
+const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+sun.position.set(30, 60, 20);
+sun.castShadow = true;
+scene.add(sun);
+
 const world = [];
+const blockSize = 4;
+const mapSize = 24;
 
-const blockSize = 2;
-const mapSize = 2;
+const textures = {
+    dirt: new THREE.MeshStandardMaterial({ color: 0x6b4423 }),
+    stone: new THREE.MeshStandardMaterial({ color: 0x666666 }),
+    gold: new THREE.MeshStandardMaterial({ color: 0xffcc00, emissive: 0x553300 }),
+    ruby: new THREE.MeshStandardMaterial({ color: 0xff0044, emissive: 0x440011 })
+};
 
-// BLOCK GEOMETRY
-const geometry = new THREE.BoxGeometry(
-blockSize,
-blockSize,
-blockSize
-);
+const geometry = new THREE.BoxGeometry(blockSize, blockSize, blockSize);
 
-// MATERIALS
-const dirtMaterial = new THREE.MeshLambertMaterial({
-color: 0x8b4513
+let coins = 0;
+let inventory = [];
+let digCount = 0;
+let toolLevel = 1;
+
+function createBlock(x, y, z, type) {
+    const material = textures[type];
+
+    const cube = new THREE.Mesh(geometry, material);
+
+    cube.position.set(x, y, z);
+    cube.castShadow = true;
+    cube.receiveShadow = true;
+
+    cube.userData.type = type;
+
+    scene.add(cube);
+    world.push(cube);
+}
+
+function generateWorld() {
+    for(let x = -mapSize; x < mapSize; x++) {
+        for(let z = -mapSize; z < mapSize; z++) {
+            for(let y = -10; y < 5; y++) {
+
+                let type = 'dirt';
+
+                const random = Math.random();
+
+                if(y < -5 && random < 0.12) type = 'stone';
+                if(y < -7 && random < 0.03) type = 'gold';
+                if(y < -9 && random < 0.01) type = 'ruby';
+
+                createBlock(
+                    x * blockSize,
+                    y * blockSize,
+                    z * blockSize,
+                    type
+                );
+            }
+        }
+    }
+}
+
+generateWorld();
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+function updateUI() {
+    document.getElementById('coins').innerText = coins;
+    document.getElementById('inventoryCount').innerText = inventory.length;
+    document.getElementById('depth').innerText = Math.floor(Math.abs(camera.position.y));
+    document.getElementById('questProgress').innerText = digCount;
+
+    if(toolLevel === 1)
+        document.getElementById('tool').innerText = 'Wooden Shovel';
+
+    if(toolLevel === 2)
+        document.getElementById('tool').innerText = 'Iron Shovel';
+
+    if(toolLevel === 3)
+        document.getElementById('tool').innerText = 'Diamond Drill';
+}
+
+window.addEventListener('mousedown', () => {
+
+    raycaster.setFromCamera(mouse, camera);
+
+    const intersects = raycaster.intersectObjects(world);
+
+    if(intersects.length > 0) {
+
+        const object = intersects[0].object;
+
+        inventory.push(object.userData.type);
+
+        if(object.userData.type === 'dirt') coins += 1;
+        if(object.userData.type === 'stone') coins += 4;
+        if(object.userData.type === 'gold') coins += 40;
+        if(object.userData.type === 'ruby') coins += 120;
+
+        digCount++;
+
+        scene.remove(object);
+
+        const index = world.indexOf(object);
+        if(index > -1) world.splice(index, 1);
+
+        createParticles(object.position);
+
+        if(digCount >= 25) {
+            coins += 200;
+            digCount = 0;
+            alert('QUEST COMPLETED! +200 Coins');
+        }
+
+        updateUI();
+    }
 });
 
-const goldMaterial = new THREE.MeshLambertMaterial({
-color: 0xffcc00
-});
+function createParticles(pos) {
 
-// GENERATE WORLD
-for(let x = -mapSize; x <= mapSize; x++)
-{
-for(let z = -mapSize; z <= mapSize; z++)
-{
-for(let y = -3; y <= 0; y++)
-{
+    const particleGeometry = new THREE.SphereGeometry(0.2, 6, 6);
+    const particleMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
 
-let material = dirtMaterial;
+    for(let i = 0; i < 12; i++) {
 
-// RANDOM GOLD
-if(Math.random() < 0.1)
-{
-material = goldMaterial;
+        const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+
+        particle.position.copy(pos);
+
+        scene.add(particle);
+
+        const velocity = {
+            x: (Math.random() - 0.5) * 0.3,
+            y: Math.random() * 0.3,
+            z: (Math.random() - 0.5) * 0.3
+        };
+
+        let life = 40;
+
+        function animateParticle() {
+
+            if(life <= 0) {
+                scene.remove(particle);
+                return;
+            }
+
+            particle.position.x += velocity.x;
+            particle.position.y += velocity.y;
+            particle.position.z += velocity.z;
+
+            life--;
+
+            requestAnimationFrame(animateParticle);
+        }
+
+        animateParticle();
+    }
 }
 
-const cube = new THREE.Mesh(
-geometry,
-material
-);
-
-cube.position.set(
-x * blockSize,
-y * blockSize,
-z * blockSize
-);
-
-scene.add(cube);
-
-world.push(cube);
-
-}
-}
-}
-
-// CONTROLS
 const keys = {};
 
-window.addEventListener("keydown", (e)=>
-{
-keys[e.key.toLowerCase()] = true;
+window.addEventListener('keydown', (e) => {
+    keys[e.key.toLowerCase()] = true;
 });
 
-window.addEventListener("keyup", (e)=>
-{
-keys[e.key.toLowerCase()] = false;
+window.addEventListener('keyup', (e) => {
+    keys[e.key.toLowerCase()] = false;
 });
 
-// DIG SYSTEM
-const raycaster = new THREE.Raycaster();
+function movement() {
 
-window.addEventListener("click", ()=>
-{
+    const speed = 0.25 + (toolLevel * 0.05);
 
-raycaster.setFromCamera(
-new THREE.Vector2(0,0),
-camera
-);
+    if(keys['w']) controls.moveForward(speed);
+    if(keys['s']) controls.moveForward(-speed);
+    if(keys['a']) controls.moveRight(-speed);
+    if(keys['d']) controls.moveRight(speed);
 
-const hit = raycaster.intersectObjects(world);
-
-if(hit.length > 0)
-{
-const block = hit[0].object;
-
-scene.remove(block);
-
-const index = world.indexOf(block);
-
-if(index > -1)
-{
-world.splice(index,1);
-}
+    if(keys[' ']) camera.position.y += speed;
+    if(keys['shift']) camera.position.y -= speed;
 }
 
-});
+window.buyIronShovel = function() {
 
-// GAME LOOP
-function animate()
-{
-requestAnimationFrame(animate);
+    if(coins >= 200) {
+        coins -= 200;
+        toolLevel = 2;
+        updateUI();
+        alert('Iron Shovel Purchased!');
+    }
+}
 
-// MOVEMENT
-if(keys["w"]) camera.position.z -= 0.1;
-if(keys["s"]) camera.position.z += 0.1;
-if(keys["a"]) camera.position.x -= 0.1;
-if(keys["d"]) camera.position.x += 0.1;
+window.buyDrill = function() {
 
-renderer.render(scene, camera);
+    if(coins >= 1000) {
+        coins -= 1000;
+        toolLevel = 3;
+        updateUI();
+        alert('Diamond Drill Purchased!');
+    }
+}
+
+window.sellItems = function() {
+
+    const earned = inventory.length * 3;
+    coins += earned;
+    inventory = [];
+
+    alert('Sold Inventory For ' + earned + ' Coins');
+
+    updateUI();
+}
+
+function animate() {
+
+    requestAnimationFrame(animate);
+
+    movement();
+
+    renderer.render(scene, camera);
 }
 
 animate();
+updateUI();
+
+window.addEventListener('resize', () => {
+
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+setTimeout(() => {
+    document.getElementById('loading').style.display = 'none';
+}, 2500);
 </script>
+
+</body>
+</html>
